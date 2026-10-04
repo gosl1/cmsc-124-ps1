@@ -33,10 +33,17 @@ dt_status dt_int_add(long long a, long long b, long long *out)
        dt_int_add(2, 3, &out)          -> DT_OK, out = 5
        dt_int_add(LLONG_MAX, 1, &out)  -> DT_ERR_OVERFLOW, out untouched
        cases/normal/int_arithmetic.case, cases/boundary/int_overflow_add.case */
-    (void)a;
-    (void)b;
-    (void)out;
-    return DT_ERR_OVERFLOW;
+    if (out == NULL) {
+        return DT_ERR_OVERFLOW;
+    }
+
+    __int128 result = (__int128)a + (__int128)b;
+    if (result < LLONG_MIN || result > LLONG_MAX) {
+        return DT_ERR_OVERFLOW;
+    }
+
+    *out = (long long)result;
+    return DT_OK;
 }
 
 /*
@@ -51,10 +58,17 @@ dt_status dt_int_sub(long long a, long long b, long long *out)
        dt_int_sub(10, 4, &out)                 -> DT_OK, out = 6
        dt_int_sub(LLONG_MIN + 1, 2, &out)      -> DT_ERR_OVERFLOW, out untouched
        cases/normal/int_arithmetic.case, cases/boundary/int_overflow_sub_min.case */
-    (void)a;
-    (void)b;
-    (void)out;
-    return DT_ERR_OVERFLOW;
+    if (out == NULL) {
+        return DT_ERR_OVERFLOW;
+    }
+
+    __int128 result = (__int128)a - (__int128)b;
+    if (result < LLONG_MIN || result > LLONG_MAX) {
+        return DT_ERR_OVERFLOW;
+    }
+
+    *out = (long long)result;
+    return DT_OK;
 }
 
 /*
@@ -70,8 +84,15 @@ dt_status dt_int_mul(long long a, long long b, long long *out)
        dt_int_mul(LLONG_MIN, -1, &out)   -> DT_ERR_OVERFLOW, out untouched
        cases/normal/int_arithmetic.case,
        cases/boundary/int_mul_min_by_negative_one.case */
-    (void)a;
-    (void)b;
-    (void)out;
-    return DT_ERR_OVERFLOW;
+    if (out == NULL) {
+        return DT_ERR_OVERFLOW;
+    }
+
+    __int128 result = (__int128)a * (__int128)b;
+    if (result < LLONG_MIN || result > LLONG_MAX) {
+        return DT_ERR_OVERFLOW;
+    }
+
+    *out = (long long)result;
+    return DT_OK;
 }
