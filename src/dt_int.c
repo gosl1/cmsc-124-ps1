@@ -29,20 +29,16 @@
  */
 dt_status dt_int_add(long long a, long long b, long long *out)
 {
-    /* TODO: Check for overflow. Then write the sum to *out.
-       dt_int_add(2, 3, &out)          -> DT_OK, out = 5
-       dt_int_add(LLONG_MAX, 1, &out)  -> DT_ERR_OVERFLOW, out untouched
-       cases/normal/int_arithmetic.case, cases/boundary/int_overflow_add.case */
     if (out == NULL) {
         return DT_ERR_OVERFLOW;
     }
-
-    __int128 result = (__int128)a + (__int128)b;
-    if (result < LLONG_MIN || result > LLONG_MAX) {
+    if (b > 0 && a > LLONG_MAX - b) {
         return DT_ERR_OVERFLOW;
     }
-
-    *out = (long long)result;
+    if (b < 0 && a < LLONG_MIN - b) {
+        return DT_ERR_OVERFLOW;
+    }
+    *out = a + b;
     return DT_OK;
 }
 
@@ -52,25 +48,20 @@ dt_status dt_int_add(long long a, long long b, long long *out)
  */
 dt_status dt_int_sub(long long a, long long b, long long *out)
 {
-    /* TODO: Check subtraction directly.
-       The value -LLONG_MIN does not exist in long long.
-       Therefore, dt_int_add(a, -b, out) fails when b is LLONG_MIN.
-       dt_int_sub(10, 4, &out)                 -> DT_OK, out = 6
-       dt_int_sub(LLONG_MIN + 1, 2, &out)      -> DT_ERR_OVERFLOW, out untouched
-       cases/normal/int_arithmetic.case, cases/boundary/int_overflow_sub_min.case */
     if (out == NULL) {
         return DT_ERR_OVERFLOW;
     }
 
-    __int128 result = (__int128)a - (__int128)b;
-    if (result < LLONG_MIN || result > LLONG_MAX) {
+    if (b > 0 && a < LLONG_MIN + b) {
+        return DT_ERR_OVERFLOW;
+    }
+    if (b < 0 && a > LLONG_MAX + b) {
         return DT_ERR_OVERFLOW;
     }
 
-    *out = (long long)result;
+    *out = a - b;
     return DT_OK;
 }
-
 /*
  * dt_int_mul computes a * b.
  * It returns DT_ERR_OVERFLOW and does not change *out for an overflow.
@@ -88,11 +79,32 @@ dt_status dt_int_mul(long long a, long long b, long long *out)
         return DT_ERR_OVERFLOW;
     }
 
-    __int128 result = (__int128)a * (__int128)b;
-    if (result < LLONG_MIN || result > LLONG_MAX) {
+    if (a == 0 || b == 0) {
+        *out = 0;
+        return DT_OK;
+    }
+
+    /* LLONG_MIN * -1 overflows; -1 * LLONG_MIN is the same case */
+    if ((a == -1 && b == LLONG_MIN) || (b == -1 && a == LLONG_MIN)) {
         return DT_ERR_OVERFLOW;
     }
 
-    *out = (long long)result;
+    if (a > 0) {
+        if (b > 0 && a > LLONG_MAX / b) {
+            return DT_ERR_OVERFLOW;
+        }
+        if (b < 0 && b < LLONG_MIN / a) {
+            return DT_ERR_OVERFLOW;
+        }
+    } else {
+        if (b > 0 && a < LLONG_MIN / b) {
+            return DT_ERR_OVERFLOW;
+        }
+        if (b < 0 && a < LLONG_MAX / b) {
+            return DT_ERR_OVERFLOW;
+        }
+    }
+
+    *out = a * b;
     return DT_OK;
 }
