@@ -19,10 +19,53 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+
+#define DT_MAP_BUCKETS 16
+
+
+typedef struct dt_map_entry {
+    char *key;              
+    dt_value value;
+    struct dt_entry *next;
+} dt_map_entry;
+
+
 
 struct dt_map {
-    int placeholder; /* TODO: Add the buckets and insertion-order data. */
+    dt_map_entry **buckets;       // used to find a key quickly 
+    size_t         bucket_count;
+    dt_map_entry **order;         // used to print keys in insertion order 
+    size_t         length;        // how many keys the map holds 
+    size_t         capacity;      // how many entries the order list can have
 };
+
+
+static unsigned long long hash(const char *key)
+{
+    // 64-bit FNV-1a hash from manual
+    unsigned long long h = 14695981039346656037ULL;
+    for (const unsigned char *p = (const unsigned char *)key; *p != '\0'; p++) {
+        h ^= (unsigned long long)*p;
+        h *= 1099511628211ULL;
+    }
+}
+
+static size_t bucket_of(const dt_map *m, const char *key)
+{
+    return (size_t)(hash(key) % m->bucket_count);
+}
+
+
+static dt_map_entry *find_entry(const dt_map *m, const char *key)
+{
+    for (dt_map_entry *e = m->buckets[bucket_of(m, key)]; e != NULL; e = e->next) {
+        if (strcmp(e->key, key) == 0) {
+            return e;
+        }
+    }
+    return NULL;
+}
 
 /*
  * dt_map_new builds an empty map. It returns NULL after an allocation failure.
@@ -32,7 +75,24 @@ dt_map *dt_map_new(void)
     /* TODO: Return an allocated empty map. Return NULL after an allocation failure.
        dt_map_new()  -> a map whose dt_map_len is 0
        cases/normal/map_basics.case */
-    return NULL;
+
+    dt_map *m = malloc(sizeof *m);
+    if (m == NULL) {
+        return NULL;
+    }
+
+    m->buckets = calloc(DT_MAP_BUCKETS, sizeof *m->buckets);   // all buckets start empty
+    
+    if (m->buckets == NULL) {
+        free(m);              
+        return NULL;
+    }
+
+    m->bucket_count = DT_MAP_BUCKETS;
+    m->order = NULL;
+    m->length = 0;
+    m->capacity = 0;
+    return m;
 }
 
 /*
@@ -46,7 +106,19 @@ void dt_map_free(dt_map *m)
        a map holding a string value  -> the nodes and keys go, the string stays
        dt_map_free(NULL)             -> returns, having done nothing
        cases/cleanup/map_churn.case */
-    (void)m;
+
+    if (m == NULL) {
+        return;
+    }
+
+    for (size_t i = 0; i < m->length; i++) {   
+        free(m->order[i]->key);            
+        free(m->order[i]);                
+    }
+
+    free(m->order);
+    free(m->buckets);
+    free(m);
 }
 
 /*
@@ -60,8 +132,7 @@ size_t dt_map_len(const dt_map *m)
        after put beta again:          dt_map_len(m) -> 3, still
        after del alpha:               dt_map_len(m) -> 2
        cases/normal/map_basics.case */
-    (void)m;
-    return 0;
+    return m->length;
 }
 
 /*
@@ -80,10 +151,18 @@ dt_status dt_map_put(dt_map *m, const char *key, dt_value v)
        put "beta" -> 22 on that map       -> DT_OK, same position, new value
        an allocation failure              -> DT_ERR_CAPACITY, map unchanged
        cases/normal/map_basics.case */
-    (void)m;
-    (void)key;
-    (void)v;
-    return DT_ERR_CAPACITY;
+
+    dt_map_entry *e = find_entry(m, key);
+    size_t len;
+    size_t b;
+
+    if (e != NULL) {              // key exists, replace the valu w/ same pos
+        e->value = v;
+        return DT_OK;
+    }
+
+    // continue lang here
+
 }
 
 /*
@@ -99,10 +178,14 @@ dt_status dt_map_get(const dt_map *m, const char *key, dt_value *out)
          dt_map_get(m, "beta", &out)   -> DT_OK, *out is the integer 22
          dt_map_get(m, "ghost", &out)  -> DT_ERR_KEY, *out untouched
        cases/normal/map_basics.case, cases/boundary/map_missing_key.case */
-    (void)m;
-    (void)key;
-    (void)out;
-    return DT_ERR_KEY;
+    dt_map_entry *e = find_entry(m, key);
+
+    if (e == NULL) {              // missing key
+        return DT_ERR_KEY;
+    }
+
+    *out = e->value;
+    return DT_OK;
 }
 
 /*
@@ -136,8 +219,12 @@ dt_status dt_map_key_at(const dt_map *m, size_t index, const char **out)
          dt_map_key_at(m, 0, &out)  -> DT_OK, *out = "alpha"
          dt_map_key_at(m, 3, &out)  -> DT_ERR_RANGE, *out untouched
        cases/normal/map_basics.case */
-    (void)m;
-    (void)index;
-    (void)out;
-    return DT_ERR_RANGE;
+
+    if (index >= m->length) {
+        return DT_ERR_RANGE;
+    }
+
+    *out = m->order[index]->key;
+    return DT_OK;
+
 }
