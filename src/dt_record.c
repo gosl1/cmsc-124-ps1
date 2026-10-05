@@ -73,10 +73,7 @@ dt_record *dt_record_new(const char **field_names, size_t field_count)
         memcpy(r->names[i], field_names[i], len + 1U);
         r->values[i] = dt_value_nil();
     }
-
-
-    
-    return NULL;
+    return r;
 }
 
 /*
