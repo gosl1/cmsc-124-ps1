@@ -27,7 +27,7 @@
 typedef struct dt_map_entry {
     char *key;              
     dt_value value;
-    struct dt_entry *next;
+    struct dt_map_entry *next;
 } dt_map_entry;
 
 
@@ -49,6 +49,7 @@ static unsigned long long hash(const char *key)
         h ^= (unsigned long long)*p;
         h *= 1099511628211ULL;
     }
+    return h;
 }
 
 static size_t bucket_of(const dt_map *m, const char *key)
@@ -153,15 +154,46 @@ dt_status dt_map_put(dt_map *m, const char *key, dt_value v)
        cases/normal/map_basics.case */
 
     dt_map_entry *e = find_entry(m, key);
-    size_t len;
-    size_t b;
-
-    if (e != NULL) {              // key exists, replace the valu w/ same pos
+    if (e != NULL) {
         e->value = v;
         return DT_OK;
     }
 
-    // continue lang here
+
+    if (m->length == m->capacity) {
+        if (m->capacity > SIZE_MAX / 2 / sizeof *m->order) {
+            return DT_ERR_CAPACITY;
+        }
+        size_t new_capacity = m->capacity == 0 ? 8 : m->capacity * 2;
+        dt_map_entry **grown = realloc(m->order, new_capacity * sizeof *grown);
+        if (grown == NULL) {
+            return DT_ERR_CAPACITY;     
+        }
+        m->order = grown;
+        m->capacity = new_capacity;
+    }
+
+    dt_map_entry *n = malloc(sizeof *n);
+    if (n == NULL) {
+        return DT_ERR_CAPACITY;
+    }
+
+    size_t klen = strlen(key);
+    n->key = malloc(klen + 1);
+    if (n->key == NULL) {
+        free(n);
+        return DT_ERR_CAPACITY;
+    }
+    memcpy(n->key, key, klen + 1);      
+    n->value = v;
+
+   
+    size_t b = bucket_of(m, key);
+    n->next = m->buckets[b];            
+    m->buckets[b] = n;
+    m->order[m->length++] = n;         
+    return DT_OK;
+
 
 }
 
@@ -201,9 +233,29 @@ dt_status dt_map_remove(dt_map *m, const char *key)
          dt_map_remove(m, "ghost")  -> DT_ERR_KEY, nothing changes
        reinserting "alpha" appends it after "gamma"
        cases/normal/map_basics.case, cases/boundary/map_remove_missing_key.case */
-    (void)m;
-    (void)key;
-    return DT_ERR_KEY;
+    dt_map_entry **link = &m->buckets[bucket_of(m, key)];
+    while (*link != NULL && strcmp((*link)->key, key) != 0) {
+        link = &(*link)->next;
+    }
+    if (*link == NULL) {
+        return DT_ERR_KEY;             
+    }
+
+    dt_map_entry *e = *link;
+    *link = e->next;                  
+
+  
+    size_t i = 0;
+    while (m->order[i] != e) {
+        i++;
+    }
+    memmove(&m->order[i], &m->order[i + 1],
+            (m->length - i - 1) * sizeof *m->order);
+    m->length--;
+
+    free(e->key);
+    free(e);
+    return DT_OK;
 }
 
 /*

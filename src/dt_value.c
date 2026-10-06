@@ -126,7 +126,6 @@ dt_status dt_value_as_enum(dt_value v, int *out)
 
     *out = v.as.ordinal;
     return DT_OK;
-
 }
 
 /*
@@ -146,5 +145,4 @@ dt_status dt_value_as_str(dt_value v, dt_str **out)
 
     *out = v.as.string;
     return DT_OK;
-
 }
